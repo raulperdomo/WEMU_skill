@@ -98,11 +98,13 @@ const LaunchRequestHandler = {
         const apiKey = handlerInput.requestEnvelope.context.System.apiAccessToken;
         const apiEndpoint = handlerInput.requestEnvelope.context.System.apiEndpoint;
 
-        const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
-        dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope,
-            attributes : { 'test' : 1234});
+        
         //console.log('API Key and Endpoint ', apiKey, apiEndpoint)
         try {
+            const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
+            console.log('Adapter Created.');
+            dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope,
+                { 'test' : 1234 });
             /* userInfo is a JS object with two values userInfo.name and userInfo.email
             this will only be populated if they have given us permission to use that info. */
             var userInfo = await getEmailAddress(apiKey, apiEndpoint);
@@ -286,5 +288,6 @@ exports.handler = Alexa.SkillBuilders.custom()
         ErrorHandler)
     .withPersistenceAdapter(Adapter)
     .lambda();
+
 
 
