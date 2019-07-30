@@ -3,7 +3,7 @@
 // session persistence, api calls, and more.
 const Alexa = require('ask-sdk-core');
 const request = require('request');
-const Adapter = require('ask-sdk-dynamodb-persistence-adapter');
+const { Adapter } = require('ask-sdk-dynamodb-persistence-adapter');
 
 //function hello()
 //{
