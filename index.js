@@ -3,6 +3,7 @@
 // session persistence, api calls, and more.
 const Alexa = require('ask-sdk-core');
 const request = require('request');
+const Adapter = require('ask-sdk-dynamodb-persistence-adapter');
 
 //function hello()
 //{
@@ -96,6 +97,10 @@ const LaunchRequestHandler = {
 
         const apiKey = handlerInput.requestEnvelope.context.System.apiAccessToken;
         const apiEndpoint = handlerInput.requestEnvelope.context.System.apiEndpoint;
+
+        const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
+        dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope,
+            attributes : { 'test' : 1234});
         //console.log('API Key and Endpoint ', apiKey, apiEndpoint)
         try {
             /* userInfo is a JS object with two values userInfo.name and userInfo.email
@@ -134,8 +139,10 @@ const NewsIntentHandler = {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
         && handlerInput.requestEnvelope.request.intent.name === 'NewsIntent';
     },
-    handle(handlerInput) {
+    async handle(handlerInput) {
         const speechText = 'Here is the latest news from W E M U.';
+        const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
+        let attributes = await dynamoDbPersistenceAdapter.getAttributes(handlerInput.requestEnvelope);
         //return handlerInput.responseBuilder
           //  .speak(speechText)
             //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
@@ -277,7 +284,7 @@ exports.handler = Alexa.SkillBuilders.custom()
         IntentReflectorHandler) // make sure IntentReflectorHandler is last so it doesn't override your custom intent handlers
     .addErrorHandlers(
         ErrorHandler)
+    .withPersistenceAdapter(Adapter)
     .lambda();
-
 
 
