@@ -3,7 +3,8 @@
 // session persistence, api calls, and more.
 const Alexa = require('ask-sdk-core');
 const request = require('request');
-const { Adapter } = require('ask-sdk-dynamodb-persistence-adapter');
+const { DynamoDbPersistenceAdapter }  = require('ask-sdk-dynamodb-persistence-adapter');
+const dynamoDbPersistenceAdapter = new DynamoDbPersistenceAdapter({ tableName : 'PlaybackTable', createTable : 'true' });
 
 //function hello()
 //{
@@ -98,13 +99,11 @@ const LaunchRequestHandler = {
         const apiKey = handlerInput.requestEnvelope.context.System.apiAccessToken;
         const apiEndpoint = handlerInput.requestEnvelope.context.System.apiEndpoint;
 
+        //const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+        //console.log("Attributes: " + attributes);
         
         //console.log('API Key and Endpoint ', apiKey, apiEndpoint)
         try {
-            const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
-            console.log('Adapter Created.');
-            dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope,
-                { 'test' : 1234 });
             /* userInfo is a JS object with two values userInfo.name and userInfo.email
             this will only be populated if they have given us permission to use that info. */
             var userInfo = await getEmailAddress(apiKey, apiEndpoint);
@@ -143,12 +142,10 @@ const NewsIntentHandler = {
     },
     async handle(handlerInput) {
         const speechText = 'Here is the latest news from W E M U.';
-        const dynamoDbPersistenceAdapter = new Adapter({ tableName : 'PlaybackTable', createTable : 'true' });
-        let attributes = await dynamoDbPersistenceAdapter.getAttributes(handlerInput.requestEnvelope);
-        //return handlerInput.responseBuilder
-          //  .speak(speechText)
-            //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
-            //.getResponse();
+        
+        //let attributes = handlerInput.attributesManager.getPersistentAttributes();
+        //console.log(attributes);
+        
         console.log('Playing News Cast.')
         return handlerInput.responseBuilder.speak(speechText)
         .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',0)
@@ -184,13 +181,51 @@ const CancelAndStopIntentHandler = {
             .getResponse();
     }
 };
+const ResumeIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.ResumeIntent');   
+        
+    },
+    async handle(handlerInput) {
+        const speechText = 'Resuming Playback.';
+        const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+        console.log("Attributes: " + attributes);
+        return handlerInput.responseBuilder//.addAudioPlayerStopDirective()
+            .speak(speechText)
+            .getResponse();
+    }
+};
 const PauseIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
             && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.PauseIntent');
     },
-    handle(handlerInput) {
+    async handle(handlerInput) {
         const speechText = 'Thanks for listening!';
+        var currentOffset = handlerInput.requestEnvelope.context.AudioPlayer.offsetInMilliseconds;
+        var currentToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
+        //console.log(handlerInput.requestEnvelope.context.AudioPlayer)
+        console.log('Current Offset: ' + currentOffset);
+        console.log('Current Token: ' + currentToken);
+        try {
+            const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+            console.log('Attr: ',attributes)
+        }
+        catch(err){
+            console.log(err);
+        }
+        attributes = {//.playbackInfo = {
+            'offset' : currentOffset,
+            'token' : currentToken
+        };
+        try {
+            handlerInput.attributesManager.setPersistentAttributes(attributes);
+            await handlerInput.attributesManager.savePersistentAttributes();
+        }
+        catch(error) {
+            console.log(error);
+        }
         return handlerInput.responseBuilder.addAudioPlayerStopDirective()
             .speak(speechText)
             .getResponse();
@@ -282,11 +317,12 @@ exports.handler = Alexa.SkillBuilders.custom()
         NewsIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
+        ResumeIntentHandler,
         SessionEndedRequestHandler,
         IntentReflectorHandler) // make sure IntentReflectorHandler is last so it doesn't override your custom intent handlers
     .addErrorHandlers(
         ErrorHandler)
-    .withPersistenceAdapter(Adapter)
+    .withPersistenceAdapter(dynamoDbPersistenceAdapter)
     .lambda();
 
 
