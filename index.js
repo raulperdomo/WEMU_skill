@@ -4,7 +4,7 @@
 const Alexa = require('ask-sdk-core');
 const request = require('request');
 const { DynamoDbPersistenceAdapter }  = require('ask-sdk-dynamodb-persistence-adapter');
-const dynamoDbPersistenceAdapter = new DynamoDbPersistenceAdapter({ tableName : 'PlaybackTable', createTable : 'true' });
+const dynamoDbPersistenceAdapter = new DynamoDbPersistenceAdapter({ tableName: 'PlaybackTable', createTable: true });
 
 //function hello()
 //{
@@ -340,14 +340,32 @@ const ResumeIntentHandler = {
     },
     async handle(handlerInput) {
         const speechText = 'Resuming Playback.';
+        var attributes = {};
         try {
-            //const attributes = await handlerInput.attributesManager.getPersistentAttributes();
-            const attributes = await dynamoDbPersistenceAdapter.getAttributes(handlerInput.requestEnvelope);
-            console.log("Attributes: " + attributes);
+            attributes = await handlerInput.attributesManager.getPersistentAttributes();
+            //const attributes = await dynamoDbPersistenceAdapter.getAttributes(handlerInput.requestEnvelope);
+            console.log("Attributes: \nToken: " + attributes.token,"\nOffset: ",attributes.offset);
         } catch(err) {
             console.log(err);
         }
-        return handlerInput.responseBuilder//.addAudioPlayerStopDirective()
+        if (attributes.token === 'string') {
+
+            return handlerInput.responseBuilder.speak('Ok, playing 89 point 1 W E M U FM')
+                .withStandardCard('89.1 WEMU FM', 'Your Community NPR Station','https://wemu.s3.amazonaws.com/WEMU.jpg')
+                .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://18093.live.streamtheworld.com/WEMUFM.mp3', 'string',0)
+                .getResponse();
+        }
+        if (attributes.token === '-1') {
+            return handlerInput.responseBuilder
+                .withStandardCard('WEMU Latest News', 'Your Community NPR Station.\nwemu.org','https://wemu.s3.amazonaws.com/WEMU.jpg')
+                .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',attributes.offset)
+                .getResponse();
+        } 
+        const shows = await getEpisodes();
+
+        return handlerInput.responseBuilder
+        .withSimpleCard(shows[attributes.token][0],shows[attributes.token][1])
+        .addAudioPlayerPlayDirective("REPLACE_ALL", shows[attributes.token][2], attributes.token,attributes.offset)
             .speak(speechText)
             .getResponse();
     }
@@ -365,28 +383,22 @@ const PauseIntentHandler = {
         //console.log(handlerInput.requestEnvelope.context.AudioPlayer)
         console.log('Current Offset: ' + currentOffset);
         console.log('Current Token: ' + currentToken);
+        const attributes = handlerInput.attributesManager.getSessionAttributes() || {};
+        //const attributes = {};
+        console.log(attributes);
+        attributes.token = currentToken;
+        attributes.offset = currentOffset;
+        console.log(attributes);
         try {
-            const attributes = await handlerInput.attributesManager.getPersistentAttributes();
-            console.log('Attr: ',attributes)
-        }
-        catch(err){
-            console.log(err);
-        }
-        attributes = {//.playbackInfo = {
-            'offset' : currentOffset,
-            'token' : currentToken
-        };
-        //try {
-            /*
-            handlerInput.attributesManager.setPersistentAttributes(attributes);
-            await handlerInput.attributesManager.savePersistentAttributes();
-            */
-            dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope, attributes);
 
-        /*}
+           handlerInput.attributesManager.setPersistentAttributes(attributes);
+           await handlerInput.attributesManager.savePersistentAttributes();
+           // dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope, attributes);
+
+        }
         catch(error) {
             console.log(error);
-        }*/
+        }
         return handlerInput.responseBuilder.addAudioPlayerStopDirective()
             .speak(speechText)
             .getResponse();
