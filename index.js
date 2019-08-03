@@ -10,7 +10,6 @@ const dynamoDbPersistenceAdapter = new DynamoDbPersistenceAdapter({ tableName : 
 //{
 //    console.log('Functions are fun!')
 //}
-
 function getEpisodes() {
     const https = require('https');
     const xml2js = require('xml2js');
@@ -29,15 +28,15 @@ function getEpisodes() {
         
                         var counter;
                         var shows = [];
-                        for(counter = 0; counter < 5; counter++) {
-                            shows.push(result['rss']['channel'][0]['item'][counter]['enclosure'][0]['ATTR']['url']);
-                            console.log('Link: ' + util.inspect(result['rss']['channel'][0]['item'][counter]['enclosure'][0]['ATTR']['url']));
-                           /* console.log('Shows: ' + shows);
-                            console.log('Title: ' + util.inspect(result['rss']['channel'][0]['item'][counter]['title'][0]));//, false, null))
-                            console.log('Link: ' + util.inspect(result['rss']['channel'][0]['item'][counter]['link'][0]));
-                            */
+                        for(counter = 0; counter < 10; counter++) {
+                            
+                            var title = result['rss']['channel'][0]['item'][counter]['title'][0];
+                            var author = result['rss']['channel'][0]['item'][counter]['description'][0];
+                            var url = result['rss']['channel'][0]['item'][counter]['enclosure'][0]['ATTR']['url'];
+                            shows.push([title,author,url]);
+
                         }
-                        console.log('In Shows: ' + shows);
+                        //console.log('In Shows: ' + shows);
                         resolve(shows);
                     }
                     else {
@@ -48,7 +47,6 @@ function getEpisodes() {
         });
     });
 }
-
 function getEmailAddress(apiKey, apiEndpoint)
 {
     var email = '';
@@ -98,10 +96,6 @@ const LaunchRequestHandler = {
 
         const apiKey = handlerInput.requestEnvelope.context.System.apiAccessToken;
         const apiEndpoint = handlerInput.requestEnvelope.context.System.apiEndpoint;
-
-        //const attributes = await handlerInput.attributesManager.getPersistentAttributes();
-        //console.log("Attributes: " + attributes);
-        
         //console.log('API Key and Endpoint ', apiKey, apiEndpoint)
         try {
             /* userInfo is a JS object with two values userInfo.name and userInfo.email
@@ -129,6 +123,7 @@ const ListenLiveIntentHandler = {
     handle(handlerInput) {
         console.log('Opening Radio Stream.')
         return handlerInput.responseBuilder.speak('Ok, playing 89 point 1 W E M U FM')
+        .withStandardCard('89.1 WEMU FM', 'Your Community NPR Station','https://wemu.s3.amazonaws.com/WEMU.jpg')
         .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://18093.live.streamtheworld.com/WEMUFM.mp3', 'string',0)
         .getResponse();
           
@@ -148,26 +143,84 @@ const NewsIntentHandler = {
         
         console.log('Playing News Cast.')
         return handlerInput.responseBuilder.speak(speechText)
-        .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',0)
-        .getResponse();
+            .withStandardCard('WEMU Latest News', 'Your Community NPR Station.\nwemu.org','https://wemu.s3.amazonaws.com/WEMU.jpg')
+            .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',0)
+            .getResponse();
           
         
     }
 };
+
 const HelpIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
             && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.HelpIntent';
     },
     handle(handlerInput) {
-        const speechText = 'You can say hello to me! How can I help?';
-
+        const speechText = 'You can ask to hear the live radio stream, or the latest news.';
+        
         return handlerInput.responseBuilder
             .speak(speechText)
             .reprompt(speechText)
             .getResponse();
     }
 };
+
+const StartOverIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.StartOverIntent';
+    },
+    async handle(handlerInput) {
+        var requestToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
+        if (requestToken === 'string') {
+            return handlerInput.responseBuilder
+                .speak('You cannot start over when listening to the live stream.')
+                .getResponse()
+        } else {
+            lastToken = parseInt(requestToken);
+
+            const shows = await getEpisodes();
+            console.log('lastToken: ' + lastToken + '\nShow Info: ' + shows[lastToken]);
+
+            return handlerInput.responseBuilder
+                .withSimpleCard(shows[lastToken][0],shows[lastToken][1])
+                .addAudioPlayerPlayDirective("REPLACE_ALL", shows[lastToken][2], lastToken.toString(),0)
+                .getResponse();
+        }
+
+        
+    }
+};
+
+const ShuffleIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.ShuffleOnIntent'
+                || handlerInput.requestEnvelope.request.intent.name === 'AMAZON.ShuffleOffIntent');
+    },
+    handle(handlerInput) {
+        const speechText = 'This skill does not support shuffling playback.';
+        return handlerInput.responseBuilder
+            .speak(speechText)
+            .getResponse();
+    }
+};
+
+const LoopIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.LoopOnIntent'
+                || handlerInput.requestEnvelope.request.intent.name === 'AMAZON.LoopOffIntent');
+    },
+    handle(handlerInput) {
+        const speechText = 'This skill does not support looping playback.';
+        return handlerInput.responseBuilder
+            .speak(speechText)
+            .getResponse();
+    }
+};
+
 const CancelAndStopIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
@@ -181,6 +234,104 @@ const CancelAndStopIntentHandler = {
             .getResponse();
     }
 };
+
+const NextIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.NextIntent');
+    },
+    async handle(handlerInput) {
+
+        console.log('Next podcast requested.');
+        //console.log(handlerInput.requestEnvelope.context.AudioPlayer);
+        var requestToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
+        if (requestToken === 'string') {
+            return handlerInput.responseBuilder
+                .speak('You cannot skip when listening to the live stream.')
+                .getResponse()
+        } else {
+            lastToken = parseInt(requestToken);
+            let token = lastToken + 1;
+
+            const shows = await getEpisodes();
+            console.log('Token: ' + token + '\nlastToken: ' + lastToken + '\nShow Info: ' + shows[token]);
+
+            return handlerInput.responseBuilder
+                .withSimpleCard(shows[token][0],shows[token][1])
+                .addAudioPlayerPlayDirective("REPLACE_ALL", shows[token][2], token.toString(),0)
+                .getResponse();
+        }
+    }
+};
+
+const PreviousIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.PreviousIntent');
+    },
+    async handle(handlerInput) {
+
+        console.log('Previous podcast requested.');
+        //console.log(handlerInput.requestEnvelope.context.AudioPlayer);
+        var requestToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
+        if (requestToken === 'string') {
+            return handlerInput.responseBuilder
+                .speak('You cannot skip when listening to the live stream.')
+                .getResponse()
+        } else {
+            lastToken = parseInt(requestToken);
+            let token = lastToken - 1;
+            if (token < 0) {
+                return handlerInput.responseBuilder
+                    .withStandardCard('WEMU Latest News', 'Your Community NPR Station.\nwemu.org','https://wemu.s3.amazonaws.com/WEMU.jpg')
+                    .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',0)
+                    .getResponse();
+            }
+            const shows = await getEpisodes();
+            console.log('Token: ' + token + '\nlastToken: ' + lastToken + '\nShow Info: ' + shows[token]);
+
+            return handlerInput.responseBuilder
+                .withSimpleCard(shows[token][0],shows[token][1])
+                .addAudioPlayerPlayDirective("REPLACE_ALL", shows[token][2], token.toString(),0)
+                .getResponse();
+        }
+    }
+};
+
+const RepeatIntentHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.RepeatIntent');
+    },
+    async handle(handlerInput) {
+
+        console.log('Repeat podcast requested.');
+        //console.log(handlerInput.requestEnvelope.context.AudioPlayer);
+        var requestToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
+        if (requestToken === 'string') {
+            return handlerInput.responseBuilder
+                .speak('You cannot enable repeat when listening to the live stream.')
+                .getResponse()
+        } else {
+            
+            if (requestToken === '-1') {
+                return handlerInput.responseBuilder
+                    .addAudioPlayerPlayDirective("ENQUEUE", 'https://perdomo.org/newscast.mp4', '-1',0, '-1')
+                    .getResponse();
+            }
+            lastToken = parseInt(requestToken);
+            const shows = await getEpisodes();
+            console.log('\nlastToken: ' + lastToken + '\nShow Info: ' + shows[token]);
+
+            return handlerInput.responseBuilder
+                .withSimpleCard(shows[lastToken][0],shows[lastToken][1])
+                .addAudioPlayerPlayDirective("ENQUEUE", shows[lastToken][2], lastToken.toString(),0,lastToken.toString() )
+                .getResponse();
+        }
+    }
+};
+
+
 const ResumeIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
@@ -189,13 +340,19 @@ const ResumeIntentHandler = {
     },
     async handle(handlerInput) {
         const speechText = 'Resuming Playback.';
-        const attributes = await handlerInput.attributesManager.getPersistentAttributes();
-        console.log("Attributes: " + attributes);
+        try {
+            //const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+            const attributes = await dynamoDbPersistenceAdapter.getAttributes(handlerInput.requestEnvelope);
+            console.log("Attributes: " + attributes);
+        } catch(err) {
+            console.log(err);
+        }
         return handlerInput.responseBuilder//.addAudioPlayerStopDirective()
             .speak(speechText)
             .getResponse();
     }
 };
+
 const PauseIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
@@ -219,45 +376,81 @@ const PauseIntentHandler = {
             'offset' : currentOffset,
             'token' : currentToken
         };
-        try {
+        //try {
+            /*
             handlerInput.attributesManager.setPersistentAttributes(attributes);
             await handlerInput.attributesManager.savePersistentAttributes();
-        }
+            */
+            dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope, attributes);
+
+        /*}
         catch(error) {
             console.log(error);
-        }
+        }*/
         return handlerInput.responseBuilder.addAudioPlayerStopDirective()
             .speak(speechText)
             .getResponse();
     }
 };
+
 const PlaybackHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackNearlyFinished';
     },
     async handle(handlerInput) {
-        let shows = await getEpisodes();
         console.log('Handler Activated: AudioPlayer.PlaybackNearlyFinished');
-        console.log(handlerInput.requestEnvelope.context.AudioPlayer.token);
-        console.log(shows);
+        const shows = await getEpisodes();
+        
+        //console.log(handlerInput.requestEnvelope.context.AudioPlayer.token);
+        //console.log(shows);
         let lastToken = parseInt(handlerInput.requestEnvelope.context.AudioPlayer.token);
         let token = lastToken + 1;
-        console.log('Token: ' + token + '\nlastToken: ' + lastToken + '\nShow URL: ' + shows[token]);
-        /*console.log(sessionAttributes.shows);
-        const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
-        var token = parseInt(this.context.AudioPlayer.token, 10) + 1;
-        var last = token - 1;
-        console.log("token: " + token);
-        console.log('Enqueuing: ' + sessionAttributes.shows[token]);
-*/
-        const speechText = 'Playing Next Podcast!';
+        console.log('\nToken: ' + token + '\nlastToken: ' + lastToken + '\nShow Info: ' + shows[token]);
+        
+
         return handlerInput.responseBuilder
             //.addAudioPlayerPlayDirective("ENQUEUE", 'https://cpa.ds.npr.org/wemu/audio/2019/07/WashUnited071519.mp3', 'string',0, 'string')
-            .addAudioPlayerPlayDirective("ENQUEUE", shows[token], token.toString(),0 , lastToken.toString())
+            .withSimpleCard(shows[token][0],shows[token][1])
+            .addAudioPlayerPlayDirective("ENQUEUE", shows[token][2], token.toString(),0 , lastToken.toString())
             .getResponse();
         
     }
 };
+
+const PlaybackStartedHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackStarted';
+    },
+    handle(handlerInput) {
+    
+        console.log('Playback Started!');
+        return handlerInput.responseBuilder.getResponse();
+        
+    }
+};
+const PlaybackStoppedHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackStopped';
+    },
+    handle(handlerInput) {
+    
+        console.log('Playback Stopped!');
+        return handlerInput.responseBuilder.getResponse();
+        
+    }
+};
+const PlaybackFinishedHandler = {
+    canHandle(handlerInput) {
+        return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackFinished';
+    },
+    handle(handlerInput) {
+    
+        console.log('Playback Finished!');
+        return handlerInput.responseBuilder.getResponse();
+        
+    }
+};
+
 const SessionEndedRequestHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'SessionEndedRequest';
@@ -296,6 +489,8 @@ const ErrorHandler = {
     },
     handle(handlerInput, error) {
         console.log(`~~~~ Error handled: ${error.message}`);
+        console.log('Type: ', handlerInput.requestEnvelope.request.type);
+        console.log(error);
         const speechText = `Sorry, I couldn't understand what you said. Please try again.`;
 
         return handlerInput.responseBuilder
@@ -314,8 +509,16 @@ exports.handler = Alexa.SkillBuilders.custom()
         ListenLiveIntentHandler,
         PauseIntentHandler,
         PlaybackHandler,
+        PlaybackStartedHandler,
+        PlaybackStoppedHandler,
+        PlaybackFinishedHandler,
         NewsIntentHandler,
+        NextIntentHandler,
+        RepeatIntentHandler,
+        PreviousIntentHandler,
         HelpIntentHandler,
+        ShuffleIntentHandler,
+        StartOverIntentHandler,
         CancelAndStopIntentHandler,
         ResumeIntentHandler,
         SessionEndedRequestHandler,
