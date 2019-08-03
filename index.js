@@ -515,6 +515,7 @@ exports.handler = Alexa.SkillBuilders.custom()
         NewsIntentHandler,
         NextIntentHandler,
         RepeatIntentHandler,
+        LoopIntentHandler,
         PreviousIntentHandler,
         HelpIntentHandler,
         ShuffleIntentHandler,
