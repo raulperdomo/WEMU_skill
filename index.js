@@ -1,15 +1,8 @@
-// This sample demonstrates handling intents from an Alexa skill using the Alexa Skills Kit SDK (v2).
-// Please visit https://alexa.design/cookbook for additional examples on implementing slots, dialog management,
-// session persistence, api calls, and more.
 const Alexa = require('ask-sdk-core');
 const request = require('request');
 const { DynamoDbPersistenceAdapter }  = require('ask-sdk-dynamodb-persistence-adapter');
 const dynamoDbPersistenceAdapter = new DynamoDbPersistenceAdapter({ tableName: 'PlaybackTable', createTable: true });
 
-//function hello()
-//{
-//    console.log('Functions are fun!')
-//}
 function getEpisodes() {
     const https = require('https');
     const xml2js = require('xml2js');
@@ -47,14 +40,15 @@ function getEpisodes() {
         });
     });
 }
+
 function getEmailAddress(apiKey, apiEndpoint)
 {
     var email = '';
     var name = '';
     var emailResponse = 0;
     var nameResponse = 0;
+
     return new Promise (function(resolve, reject) {
-        
         //This first request retrieves the email address of the user if that info is available to us.
         request.get(apiEndpoint + '/v2/accounts/~current/settings/Profile.email').auth(null, null, true, apiKey)
         .on('response', function(response) {
@@ -66,7 +60,7 @@ function getEmailAddress(apiKey, apiEndpoint)
         .on('end', function() {
             if (emailResponse == 200) {
                 
-                //This second block does the same thing but hist the endpoint to pull the user's Full Name. 
+                //This second block does the same thing but hits the endpoint to pull the user's Full Name. 
                 request.get(apiEndpoint + '/v2/accounts/~current/settings/Profile.name').auth(null, null, true, apiKey)
                 .on('response', function(response) {
                     nameResponse = response.statusCode;
@@ -82,6 +76,7 @@ function getEmailAddress(apiKey, apiEndpoint)
                     }
                 });
             } else {
+                //If either request fails report why.
                 reject('Email Permission Not Given.');
             }
         });
@@ -93,7 +88,6 @@ const LaunchRequestHandler = {
         return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     async handle(handlerInput) {
-
         const apiKey = handlerInput.requestEnvelope.context.System.apiAccessToken;
         const apiEndpoint = handlerInput.requestEnvelope.context.System.apiEndpoint;
         //console.log('API Key and Endpoint ', apiKey, apiEndpoint)
@@ -123,9 +117,9 @@ const ListenLiveIntentHandler = {
     handle(handlerInput) {
         console.log('Opening Radio Stream.')
         return handlerInput.responseBuilder.speak('Ok, playing 89 point 1 W E M U FM')
-        .withStandardCard('89.1 WEMU FM', 'Your Community NPR Station','https://wemu.s3.amazonaws.com/WEMU.jpg')
-        .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://18093.live.streamtheworld.com/WEMUFM.mp3', 'string',0)
-        .getResponse();
+            .withStandardCard('89.1 WEMU FM', 'Your Community NPR Station','https://wemu.s3.amazonaws.com/WEMU.jpg')
+            .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://18093.live.streamtheworld.com/WEMUFM.mp3', 'string',0)
+            .getResponse();
           
         
     }
@@ -137,12 +131,9 @@ const NewsIntentHandler = {
     },
     async handle(handlerInput) {
         const speechText = 'Here is the latest news from W E M U.';
-        
-        //let attributes = handlerInput.attributesManager.getPersistentAttributes();
-        //console.log(attributes);
-        
         console.log('Playing News Cast.')
-        return handlerInput.responseBuilder.speak(speechText)
+        return handlerInput.responseBuilder
+            .speak(speechText)
             .withStandardCard('WEMU Latest News', 'Your Community NPR Station.\nwemu.org','https://wemu.s3.amazonaws.com/WEMU.jpg')
             .addAudioPlayerPlayDirective("REPLACE_ALL", 'https://perdomo.org/newscast.mp4', '-1',0)
             .getResponse();
@@ -380,11 +371,9 @@ const PauseIntentHandler = {
         const speechText = 'Thanks for listening!';
         var currentOffset = handlerInput.requestEnvelope.context.AudioPlayer.offsetInMilliseconds;
         var currentToken = handlerInput.requestEnvelope.context.AudioPlayer.token;
-        //console.log(handlerInput.requestEnvelope.context.AudioPlayer)
         console.log('Current Offset: ' + currentOffset);
         console.log('Current Token: ' + currentToken);
-        const attributes = handlerInput.attributesManager.getSessionAttributes() || {};
-        //const attributes = {};
+        const attributes = {};
         console.log(attributes);
         attributes.token = currentToken;
         attributes.offset = currentOffset;
@@ -393,8 +382,6 @@ const PauseIntentHandler = {
 
            handlerInput.attributesManager.setPersistentAttributes(attributes);
            await handlerInput.attributesManager.savePersistentAttributes();
-           // dynamoDbPersistenceAdapter.saveAttributes(handlerInput.requestEnvelope, attributes);
-
         }
         catch(error) {
             console.log(error);
@@ -412,20 +399,14 @@ const PlaybackHandler = {
     async handle(handlerInput) {
         console.log('Handler Activated: AudioPlayer.PlaybackNearlyFinished');
         const shows = await getEpisodes();
-        
-        //console.log(handlerInput.requestEnvelope.context.AudioPlayer.token);
-        //console.log(shows);
         let lastToken = parseInt(handlerInput.requestEnvelope.context.AudioPlayer.token);
         let token = lastToken + 1;
         console.log('\nToken: ' + token + '\nlastToken: ' + lastToken + '\nShow Info: ' + shows[token]);
         
-
         return handlerInput.responseBuilder
-            //.addAudioPlayerPlayDirective("ENQUEUE", 'https://cpa.ds.npr.org/wemu/audio/2019/07/WashUnited071519.mp3', 'string',0, 'string')
             .withSimpleCard(shows[token][0],shows[token][1])
             .addAudioPlayerPlayDirective("ENQUEUE", shows[token][2], token.toString(),0 , lastToken.toString())
             .getResponse();
-        
     }
 };
 
@@ -434,7 +415,6 @@ const PlaybackStartedHandler = {
         return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackStarted';
     },
     handle(handlerInput) {
-    
         console.log('Playback Started!');
         return handlerInput.responseBuilder.getResponse();
         
@@ -445,7 +425,6 @@ const PlaybackStoppedHandler = {
         return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackStopped';
     },
     handle(handlerInput) {
-    
         console.log('Playback Stopped!');
         return handlerInput.responseBuilder.getResponse();
         
@@ -456,7 +435,6 @@ const PlaybackFinishedHandler = {
         return handlerInput.requestEnvelope.request.type === 'AudioPlayer.PlaybackFinished';
     },
     handle(handlerInput) {
-    
         console.log('Playback Finished!');
         return handlerInput.responseBuilder.getResponse();
         
@@ -540,6 +518,3 @@ exports.handler = Alexa.SkillBuilders.custom()
         ErrorHandler)
     .withPersistenceAdapter(dynamoDbPersistenceAdapter)
     .lambda();
-
-
-
